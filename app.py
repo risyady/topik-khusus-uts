@@ -4,7 +4,7 @@ from flask_session import Session
 from models import db, ChatLog, ChatSession, User
 from dotenv import load_dotenv
 import os
-from werkzeug.security import generate_password_hash, check_password_hash
+import bcrypt
 from functools import wraps
 import datetime
 from pymongo import MongoClient
@@ -65,11 +65,13 @@ def register():
     if User.query.filter_by(email=data['email']).first():
         return jsonify({"message": "Email already registered"}), 400
 
-    hashed_password = generate_password_hash(data['password'])
+    hashed_password = bcrypt.hashpw(data['password'].encode('utf-8'), bcrypt.gensalt(rounds=12))
     new_user = User(
         name=data['name'],
         email=data['email'],
-        password=hashed_password
+        password=hashed_password.decode('utf-8'),
+        created_at=datetime.datetime.utcnow(),
+        updated_at=datetime.datetime.utcnow()
     )
     db.session.add(new_user)
     db.session.commit()
@@ -79,7 +81,7 @@ def register():
 def login():
     data = request.json
     user = User.query.filter_by(email=data['email']).first()
-    if user and check_password_hash(user.password, data['password']):
+    if user and bcrypt.checkpw(data['password'].encode('utf-8'), user.password.encode('utf-8')):
         session['user_id'] = user.id
         session['user_name'] = user.name
         session['user_email'] = user.email
@@ -87,19 +89,19 @@ def login():
     return jsonify({"message": "Invalid credentials"}), 401
 
 @app.route("/logout", methods=["POST"])
-@login_required
+#@login_required
 def logout():
     session.clear() 
     return jsonify({"message": "Logout successful"}), 200
 
 @app.route("/me", methods=["GET"])
-@login_required
+#@login_required
 def get_me():
     user = User.query.get(session['user_id'])
     return jsonify(user.to_dict())
 
 @app.route("/ask", methods=["POST"])
-@login_required
+#@login_required
 def ask():
     data = request.json
     query = data.get("question")
@@ -147,4 +149,4 @@ def ask():
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
-    app.run(debug=True)
+    app.run(host='0.0.0.0', debug=True)
