@@ -113,9 +113,19 @@ def ask():
         response = result.get("content")
         attachments = result.get("attachments", [])
     else:
-        response = f"Maaf, saya belum menemukan jawaban pasti untuk: '{query}'."
-        attachments = []
-        source = "ai_generated"
+        faq_result = faqs_col.find_one({
+            "$text": {"$search": query}
+        })
+
+        if faq_result:
+            response = faq_result.get("answer")
+            attachments = []
+            source = "faq"
+        
+        else:
+            response = f"Maaf, saya belum menemukan jawaban pasti untuk: '{query}'."
+            attachments = []
+            source = "ai_generated"
 
     """ log = ChatLog(
         session_id=None,  
@@ -125,7 +135,7 @@ def ask():
         created_at=datetime.datetime.utcnow()
     )
     db.session.add(log) """
-    db.session.commit()
+    #db.session.commit()
 
     return jsonify({
         "answer": response,
