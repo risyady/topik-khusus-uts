@@ -8,7 +8,6 @@ import bcrypt
 from functools import wraps
 import datetime
 from pymongo import MongoClient
-from bson import ObjectId
 
 load_dotenv()  
 
@@ -107,41 +106,28 @@ def ask():
     data = request.json
     query = data.get("question")
 
-    kb_result = knowledge_base_col.find({
+    result = knowledge_base_col.find_one({
         "$text": { "$search": query }
     })
 
-    """ source = "knowledge_base"
+    source = "knowledge_base"
     if result:
         response = result.get("content")
-        attachments = result.get("attachments", []) """
-    
-    faq_result = faqs_col.find({
-        "$text": {"$search": query}
-    })
-
-    result_list = []
-
-    for result in kb_result:
-        result_list.append({
-            "content": result.get("content"),
-            "attachments": result.get("attachments", []),
-            "source": "knowledge_base"
+        attachments = result.get("attachments", [])
+    else:
+        faq_result = faqs_col.find_one({
+            "$text": {"$search": query}
         })
 
-    for result in faq_result:
-        result_list.append({
-            "content": result.get("answer"),
-            "attachments": [],
-            "source": "faq"
-        })
-    
-    if not result_list:
-        result_list.append({
-            "content": f"Maaf, saya belum menemukan jawaban pasti untuk: '{query}'.",
-            "attachments": [],
-            "source": "ai_generated"
-        })
+        if faq_result:
+            response = faq_result.get("answer")
+            attachments = []
+            source = "faq"
+        
+        else:
+            response = f"Maaf, saya belum menemukan jawaban pasti untuk: '{query}'."
+            attachments = []
+            source = "ai_generated"
 
     """ log = ChatLog(
         session_id=None,  
@@ -154,77 +140,10 @@ def ask():
     #db.session.commit()
 
     return jsonify({
-        "answers": result_list
+        "answer": response,
+        "attachments": attachments,
+        "source": source
     })
-
-@app.route("/knowledge_base", methods=["POST"])
-def create_kb():
-    data = request.json
-    kb_doc = {
-        "title": data.get("title"),
-        "content": data.get("content"),
-        "keywords": data.get("keywords", []),
-        "attachments": data.get("attachments", []),
-        "dept_id": data.get("dept_id"),
-        "created_at": datetime.datetime.utcnow(),
-        "updated_at": datetime.datetime.utcnow()
-    }
-    result = knowledge_base_col.insert_one(kb_doc)
-    return jsonify({"message": "Knowledge base created", "id": str(result.inserted_id)}), 201
-
-@app.route("/knowledge_base", methods=["GET"])
-def read_all_kb():
-    results = list(knowledge_base_col.find())
-    formatted = [{
-        "id": str(item["_id"]),
-        "title": item.get("title"),
-        "content": item.get("content"),
-        "keywords": item.get("keywords", []),
-        "attachments": item.get("attachments", []),
-        "dept_id": item.get("dept_id"),
-        "created_at": item.get("created_at"),
-        "updated_at": item.get("updated_at")
-    } for item in results]
-    return jsonify(formatted)
-
-@app.route("/knowledge_base/<string:id>", methods=["GET"])
-def read_one_kb(id):
-    result = knowledge_base_col.find_one({"_id": ObjectId(id)})
-    if not result:
-        return jsonify({"message": "Data not found"}), 404
-    return jsonify({
-        "id": str(result["_id"]),
-        "title": result.get("title"),
-        "content": result.get("content"),
-        "keywords": result.get("keywords", []),
-        "attachments": result.get("attachments", []),
-        "dept_id": result.get("dept_id"),
-        "created_at": result.get("created_at"),
-        "updated_at": result.get("updated_at")
-    })
-
-@app.route("/knowledge_base/<string:id>", methods=["PUT"])
-def update_kb(id):
-    data = request.json
-    update_data = {
-        "title": data.get("title"),
-        "content": data.get("content"),
-        "keywords": data.get("keywords", []),
-        "attachments": data.get("attachments", []),
-        "dept_id": data.get("dept_id"),
-        "updated_at": datetime.datetime.utcnow()
-    }
-    result = knowledge_base_col.update_one({"_id": ObjectId(id)}, {"$set": update_data})
-    if result.matched_count == 0:
-        return jsonify({"message": "Data not found"}), 404
-    return jsonify({"message": "Knowledge base updated"})
-
-@app.route("/knowledge_base/<string:id>", methods=["DELETE"])
-def delete_kb(id):
-    result = knowledge_base_col.delete_one({"_id": ObjectId(id)})
-    if result.deleted_count == 0:
-        return jsonify({"message": "Data not found"}), 404
-    return jsonify({"message": "Knowledge base deleted"})
 
 
 if __name__ == "__main__":
