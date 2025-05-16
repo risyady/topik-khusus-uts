@@ -65,11 +65,10 @@ def register():
     if User.query.filter_by(email=data['email']).first():
         return jsonify({"message": "Email already registered"}), 400
 
-    hashed_password = bcrypt.hashpw(data['password'].encode('utf-8'), bcrypt.gensalt(rounds=12))
     new_user = User(
         name=data['name'],
         email=data['email'],
-        password=hashed_password.decode('utf-8'),
+        password=data['password'],
         created_at=datetime.datetime.utcnow(),
         updated_at=datetime.datetime.utcnow()
     )
